@@ -4,7 +4,7 @@
 #   docker compose down -v           # stop and wipe the database
 #
 # PDFs are written to ./out on the host, e.g.
-#   out/statements/acme/2026/09/62000001001.pdf   (password: 8001015009087)
+#   out/statements/bank/2026/09/62000001001.pdf   (password: 8001015009087)
 
 services:
   db:
