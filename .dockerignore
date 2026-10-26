@@ -1,0 +1,7 @@
+target/
+out/
+work/
+swap/
+.idea/
+*.iml
+.git/

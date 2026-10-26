@@ -1,0 +1,52 @@
+#
+#   docker compose up --build        # build, start the DB, issue September 2026
+#   docker compose run --rm app      # run the batch again (DB keeps running)
+#   docker compose down -v           # stop and wipe the database
+#
+# PDFs are written to ./out on the host, e.g.
+#   out/statements/acme/2026/09/62000001001.pdf   (password: 8001015009087)
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: bank
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    ports:
+      - "5432:5432"   # so you can inspect it with psql or an IDE
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Run once, in name order, only when the data volume is first created.
+      # After changing these files, recreate the DB with `docker compose down -v`.
+      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./src/main/resources/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      # -h localhost: during init the server listens only on the unix socket,
+      # so this stays unhealthy until the init scripts have finished.
+      test: ["CMD-SHELL", "pg_isready -h localhost -U postgres -d bank"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      STATEMENTS_DB_URL: jdbc:postgresql://db:5432/bank
+      STATEMENTS_DB_USERNAME: postgres
+      STATEMENTS_DB_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      STATEMENTS_STORAGE_TYPE: local
+      STATEMENTS_STORAGE_LOCAL_DIR: /app/out
+      STATEMENTS_REPORT_WORK_DIR: /tmp/statement-batch/work
+      STATEMENTS_REPORT_VIRTUALIZER_SWAP_DIR: /tmp/statement-batch/swap
+    # The month to issue (yyyy-MM). Override with STATEMENT_MONTH=2026-10.
+    command: ["${STATEMENT_MONTH:-2026-09}"]
+    volumes:
+      - ./out:/app/out
+    restart: "no"   # a batch job: run once and exit
+
+volumes:
+  pgdata:
